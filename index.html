@@ -28,11 +28,46 @@
     .sin-instr ul { padding-left: 1.2em; }
     .sin-instr li { margin-bottom: 12px; }
     .jspsych-instructions-nav { margin-top: 24px; }
+    .q-page { max-width: 860px; margin: 0 auto; text-align: left; font-family: Arial, Helvetica, sans-serif;
+              font-size: 18px; line-height: 1.5; color: #222; padding: 24px 12px 48px; }
+    .q-page h2 { text-align: center; font-size: 26px; margin: 0 0 16px; }
+    .q-label { text-align: right; font-size: 14px; color: #777; }
+    .q-preamble { margin-bottom: 20px; }
+    .q-block { border: 1px solid #dde2ea; border-radius: 10px; padding: 14px 16px; margin: 0 0 14px; }
+    .q-text { margin-bottom: 8px; }
+    .q-choices { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+    .q-opt { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .q-opt input, .q-cell input { width: 20px; height: 20px; margin: 0; cursor: pointer; }
+    .q-number { font-size: 18px; width: 110px; padding: 6px 8px; }
+    .q-caps-ratings { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #ccd; }
+    .q-scale { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+    .q-anchor { font-size: 14px; color: #555; width: 165px; }
+    .q-scale .q-anchor:last-child { text-align: left; }
+    .q-scale .q-anchor:first-child { text-align: right; }
+    .q-num { flex-direction: column; gap: 2px; font-size: 14px; }
+    .q-matrix-wrap { overflow-x: auto; }
+    .q-matrix { border-collapse: collapse; width: 100%; }
+    .q-matrix { table-layout: fixed; }
+    .q-matrix th { font-size: 14px; font-weight: normal; color: #555; width: 12.5%; padding: 6px 4px; vertical-align: bottom; }
+    .q-matrix th:first-child { width: 50%; }
+    .q-matrix td { border-top: 1px solid #e3e7ee; padding: 10px 4px; }
+    .q-matrix tr:nth-child(even) td { background: #f7f9fc; }
+    .q-matrix .q-text { margin: 0; padding-right: 12px; }
+    .q-cell { text-align: center; }
+    .q-cell label { display: block; padding: 4px 0; cursor: pointer; }
+    .q-missing-msg { display: none; color: #b3261e; font-size: 15px; margin-top: 6px; }
+    .q-block.q-missing { border-color: #b3261e; background: #fdf3f2; }
+    .q-block.q-missing .q-missing-msg { display: block; }
+    .q-matrix tr.q-missing td { background: #fdf3f2; }
+    .q-matrix tr.q-missing .q-text { color: #b3261e; }
+    .q-error { color: #b3261e; margin: 12px 0; }
+    .q-submit { display: block; margin: 24px auto 0; font-size: 18px; padding: 10px 28px; }
   </style>
   <script src="words.js"></script>
   <script src="plugin-sin-pair.js"></script>
   <script src="headphone-check.js"></script>
   <script src="instructions-sin.js"></script>
+  <script src="questionnaires.js"></script>
 </head>
 <body>
   <script src="experiment.js"></script>

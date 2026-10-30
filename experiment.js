@@ -5,10 +5,13 @@
              shuffle, like rng(subject) did, so a participant gets the same lists
              in every session. A random ID is generated if missing.
      group   1 = Context, 2 = NoContext. If missing, assigned at random.
-     blocks  which blocks to run, e.g. blocks=3 or blocks=1,2,3 (default 1-6)
+     blocks  which blocks to run, e.g. blocks=2 or blocks=1,2 (default: all
+             N_BLOCKS blocks, i.e. 1-3)
      order   'counterbalance' for half sample-first trials (default: target
              always first, as in the original script)
      skiphp  1 = skip the headphone screen (for your own testing only)
+     questionnaires  1 = always run them, 0 = never (default: only in the
+             session that includes the last block, N_BLOCKS)
 
    Example: https://<user>.github.io/<repo>/?id=12&group=1&blocks=1,2,3 */
 
@@ -33,7 +36,8 @@ var STIM_DIR = "online_stimuli/";
 
 // Parameters (same values as Experiment_SiN.m)
 var TRIALS_PER_BLOCK = 30;
-var N_BLOCKS = 6;
+var N_BLOCKS = 3;    // blocks per participant (30 words each, from the 180 recorded);
+                     // the questionnaires follow the last block
 var SNR_TARGET = -6;
 var SNR_SAMPLE_START = 40;
 var STEP_START = 9;
@@ -142,7 +146,9 @@ function main() {
   if (group !== 1 && group !== 2) group = Math.random() < 0.5 ? 1 : 2;
   var condition = group === 1 ? "Context" : "NoContext";
 
-  var blocks = (url("blocks") || "1,2,3,4,5,6").split(",")
+  var allBlocks = [];
+  for (var bk = 1; bk <= N_BLOCKS; bk++) allBlocks.push(bk);
+  var blocks = (url("blocks") || allBlocks.join(",")).split(",")
     .map(function (s) { return parseInt(s, 10); })
     .filter(function (b) { return b >= 1 && b <= N_BLOCKS && WORDS.length >= b * TRIALS_PER_BLOCK; });
 
@@ -318,6 +324,19 @@ function main() {
       conditional_function: function () { return !aborted && hp.passed(); }
     });
   });
+
+  // ---- Questionnaires (questionnaires.js) ----
+  // By default they run in the session that includes the final block, so a
+  // participant doing blocks over two sessions answers them only once.
+  // Override with ?questionnaires=1 (always) or ?questionnaires=0 (never).
+  var qParam = url("questionnaires");
+  var runQuestionnaires = qParam === "1" ? true : qParam === "0" ? false : blocks.indexOf(N_BLOCKS) >= 0;
+  if (runQuestionnaires) {
+    timeline.push({
+      timeline: buildQuestionnaires(jsPsych),
+      conditional_function: function () { return !aborted && hp.passed(); }
+    });
+  }
 
   // Data are saved when the timeline ends (see initJsPsych above), so there is
   // no save trial. Timestamp in the file name: DataPipe refuses a duplicate
