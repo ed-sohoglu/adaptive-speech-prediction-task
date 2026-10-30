@@ -17,7 +17,7 @@
 // Empty = download the CSV to this computer instead (for testing).
 var DATAPIPE_ID = "";
 var COMPLETION_URL = "";             // e.g. a Prolific completion link; empty = none
-var STIM_DIR = "stimuli/";
+var STIM_DIR = "online_stimuli/";
 
 // Parameters (same values as Experiment_SiN.m)
 var TRIALS_PER_BLOCK = 30;
