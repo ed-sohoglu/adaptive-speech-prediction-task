@@ -41,8 +41,8 @@ var STEP_LEADIN = 6;
 var LEADIN_SNR_THRESHOLD = 9;
 var STEP_AFTER_FIRST_REVERSAL = 3;
 var MAX_REVERSALS = 7;
-var SNR_MIN = -26;   // must match snrMin in make_gorilla_stimuli.m
-var SNR_MAX = 58;    // must match snrMax in make_gorilla_stimuli.m
+var SNR_MIN = -26;   // must match snrMin in make_stimuli.m
+var SNR_MAX = 58;    // must match snrMax in make_stimuli.m
 var ITI_MS = [];
 for (var k = 750; k <= 1250; k += 25) ITI_MS.push(k);
 

@@ -1,5 +1,5 @@
 /* headphone-check.js: Huggins-pitch headphone screen (Milne et al., 2021)
-   A jsPsych re-implementation of the Gorilla "Efficient Headphone Screen".
+   A jsPsych re-implementation of the authors' Huggins-pitch headphone screen.
 
    Each trial: three 1000 ms white-noise intervals. Two are diotic (identical
    noise in both ears). In the third, the right ear gets the same noise with a
@@ -23,7 +23,7 @@ var HP_DEFAULTS = {
   interval_ms: 1000,
   gap_ms: 500,          // silence between intervals
   ramp_ms: 10,          // onset/offset ramps (same in both ears, so the cue is unaffected)
-  rms: 0.025            // noise level; the Gorilla version was made quieter in 2021
+  rms: 0.025            // noise level; the authors' version was made quieter in 2021
 };
 
 // ---- Stimulus generation -----------------------------------------------------
