@@ -29,7 +29,7 @@ var HEADPHONE_SETTINGS = {
   pass_threshold: 6,   // out of 6 correct
   max_attempts: 1      // 2 = allow one retry
 };
-var STIM_DIR = "stimuli/";
+var STIM_DIR = "online_stimuli/";
 
 // Parameters (same values as Experiment_SiN.m)
 var TRIALS_PER_BLOCK = 30;
