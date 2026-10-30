@@ -126,11 +126,14 @@ var HugginsStim = (function () {
 })();
 
 // ---- Plugin: one 3AFC trial (or the worked example) ----------------------------
+// Response buttons stay disabled until the sound has finished playing. "Finished"
+// means the audio system reports the end of the sound AND its clock has passed
+// the end time, plus the output device's own delay (e.g. Bluetooth headphones).
 var jsPsychHugginsTrial = (function (jspsych) {
   "use strict";
   var info = {
     name: "huggins-trial",
-    version: "1.0.0",
+    version: "1.1.0",
     parameters: {
       target: { type: jspsych.ParameterType.INT, default: 1 },
       example: { type: jspsych.ParameterType.BOOL, default: false },
@@ -142,7 +145,8 @@ var jsPsychHugginsTrial = (function (jspsych) {
       response: { type: jspsych.ParameterType.INT },
       correct: { type: jspsych.ParameterType.BOOL },
       rt: { type: jspsych.ParameterType.INT },
-      plays: { type: jspsych.ParameterType.INT }
+      plays: { type: jspsych.ParameterType.INT },
+      output_latency_ms: { type: jspsych.ParameterType.INT }
     }
   };
 
@@ -151,53 +155,95 @@ var jsPsychHugginsTrial = (function (jspsych) {
 
     trial(display_element, trial) {
       var self = this;
+      var api = this.jsPsych.pluginAPI;
       var p = Object.assign({}, HP_DEFAULTS, trial.settings);
       var ctx = SinAudio.ctx;
       var buffer = HugginsStim.makeTrialBuffer(ctx, trial.target, p);
       var plays = 0;
+      var latency = 0;
       var labelHtml = trial.trial_label ? '<div class="hp-label">' + trial.trial_label + "</div>" : "";
 
-      function boxes(lit) {
+      // Three numbered buttons; disabled while listening.
+      function buttons(enabled, markTarget) {
         var h = '<div class="hp-boxes">';
         for (var i = 1; i <= 3; i++) {
-          h += '<div class="hp-box' + (lit === i ? " hp-lit" : "") +
-               (trial.example && lit === 0 && i === trial.target ? " hp-target" : "") + '">' + i + "</div>";
+          h += '<button class="hp-box hp-choice' + (markTarget && i === trial.target ? " hp-target" : "") +
+               '" data-choice="' + i + '"' + (enabled ? "" : " disabled") + ">" + i + "</button>";
         }
         return h + "</div>";
       }
 
-      // Plays the trial, lighting up each numbered box as its interval sounds.
-      function play(onDone) {
-        SinAudio.resume();
-        plays++;
-        display_element.innerHTML = '<div class="sin-text">' + labelHtml + "Listen&hellip;" + boxes(-1) + "</div>";
-        var t0 = ctx.currentTime + 0.3;
-        SinAudio.play(buffer, t0);
-        var step = (p.interval_ms + p.gap_ms) / 1000;
-        [0, 1, 2].forEach(function (j) {
-          self.jsPsych.pluginAPI.setTimeout(function () {
-            var b = display_element.querySelector(".hp-boxes");
-            if (b) b.outerHTML = boxes(j + 1);
-          }, (t0 + j * step - ctx.currentTime) * 1000);
-          self.jsPsych.pluginAPI.setTimeout(function () {
-            var b = display_element.querySelector(".hp-boxes");
-            if (b) b.outerHTML = boxes(-1);
-          }, (t0 + j * step + p.interval_ms / 1000 - ctx.currentTime) * 1000);
+      function setLit(n) {
+        display_element.querySelectorAll(".hp-box").forEach(function (b, i) {
+          b.classList.toggle("hp-lit", i + 1 === n);
         });
-        self.jsPsych.pluginAPI.setTimeout(onDone, (t0 + buffer.duration - ctx.currentTime) * 1000 + 300);
+      }
+
+      // Make sure the audio system is running; if the browser has it paused,
+      // ask for a click (which browsers accept as permission to play sound).
+      function ensureRunning(cb) {
+        if (ctx.state === "running") { cb(); return; }
+        Promise.resolve(ctx.resume ? ctx.resume() : null).then(function () {
+          if (ctx.state === "running") { cb(); return; }
+          display_element.innerHTML = '<div class="sin-text" style="font-size:22px">' +
+            "Sound is paused by your browser.<br><br>" +
+            '<button class="jspsych-btn" id="hp-enable">Click to turn on sound</button></div>';
+          display_element.querySelector("#hp-enable").onclick = function () {
+            ctx.resume().then(function () { ensureRunning(cb); });
+          };
+        });
+      }
+
+      // Plays the trial, lighting each numbered box as its interval sounds,
+      // and calls onDone only once the whole sound has been heard.
+      function play(onDone) {
+        ensureRunning(function () {
+          plays++;
+          latency = (ctx.outputLatency || 0) + (ctx.baseLatency || 0);
+          display_element.innerHTML = '<div class="sin-text">' + labelHtml + "Listen&hellip;" +
+            buttons(false, false) + "</div>";
+
+          var t0 = ctx.currentTime + 0.3;
+          var tEnd = t0 + buffer.duration;
+          var src = SinAudio.play(buffer, t0);
+          var step = (p.interval_ms + p.gap_ms) / 1000;
+          var msUntil = function (t) { return Math.max(0, (t - ctx.currentTime + latency) * 1000); };
+
+          [0, 1, 2].forEach(function (j) {
+            api.setTimeout(function () { setLit(j + 1); }, msUntil(t0 + j * step));
+            api.setTimeout(function () { setLit(0); }, msUntil(t0 + j * step + p.interval_ms / 1000));
+          });
+
+          var ended = false, clockPassed = false, finished = false;
+          var finish = function () {
+            if (finished || !ended || !clockPassed) return;
+            finished = true;
+            setLit(0);
+            api.setTimeout(onDone, latency * 1000 + 300);
+          };
+          src.onended = function () { ended = true; finish(); };
+          // The audio clock only advances while sound is actually being output,
+          // so this cannot pass early (e.g. if the tab is hidden mid-trial).
+          (function checkClock() {
+            if (ctx.currentTime >= tEnd) { clockPassed = true; finish(); }
+            else api.setTimeout(checkClock, 50);
+          })();
+        });
       }
 
       if (trial.example) {
         var showExample = function () {
           display_element.innerHTML = '<div class="sin-text" style="font-size:22px;max-width:760px">' +
-            "In this example, the faint tone was in <b>sound " + trial.target + "</b>." + boxes(0) +
+            "In this example, the faint tone was in <b>sound " + trial.target + "</b>." +
+            buttons(false, true) +
             "Listen again if you like. The tone is quiet, so it may take a couple of tries to notice it.<br><br>" +
             '<button class="jspsych-btn" id="hp-again">Play again</button> ' +
             '<button class="jspsych-btn" id="hp-continue">Continue</button></div>';
           display_element.querySelector("#hp-again").onclick = function () { play(showExample); };
           display_element.querySelector("#hp-continue").onclick = function () {
             display_element.innerHTML = "";
-            self.jsPsych.finishTrial({ target: trial.target, plays: plays });
+            self.jsPsych.finishTrial({ target: trial.target, plays: plays,
+              output_latency_ms: Math.round(latency * 1000) });
           };
         };
         play(showExample);
@@ -206,10 +252,7 @@ var jsPsychHugginsTrial = (function (jspsych) {
 
       play(function () {
         display_element.innerHTML = '<div class="sin-text" style="font-size:22px">' + labelHtml +
-          "Which sound contained the faint tone?" + '<div class="hp-boxes">' +
-          [1, 2, 3].map(function (i) {
-            return '<button class="jspsych-btn hp-choice" data-choice="' + i + '">' + i + "</button>";
-          }).join("") + "</div></div>";
+          "Which sound contained the faint tone?" + buttons(true, false) + "</div>";
         var tStart = performance.now();
         display_element.querySelectorAll(".hp-choice").forEach(function (btn) {
           btn.onclick = function () {
@@ -217,7 +260,8 @@ var jsPsychHugginsTrial = (function (jspsych) {
             display_element.innerHTML = "";
             self.jsPsych.finishTrial({
               target: trial.target, response: r, correct: r === trial.target,
-              rt: Math.round(performance.now() - tStart), plays: plays
+              rt: Math.round(performance.now() - tStart), plays: plays,
+              output_latency_ms: Math.round(latency * 1000)
             });
           };
         });
