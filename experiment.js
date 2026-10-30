@@ -8,6 +8,7 @@
      blocks  which blocks to run, e.g. blocks=3 or blocks=1,2,3 (default 1-6)
      order   'counterbalance' for half sample-first trials (default: target
              always first, as in the original script)
+     skiphp  1 = skip the headphone screen (for your own testing only)
 
    Example: https://<user>.github.io/<repo>/?id=12&group=1&blocks=1,2,3 */
 
@@ -15,9 +16,20 @@
 // DataPipe experiment ID (pipe.jspsych.org). DataPipe forwards each data file to
 // the storage provider you choose there (Google Drive, Zenodo or Dataverse).
 // Empty = download the CSV to this computer instead (for testing).
-var DATAPIPE_ID = "utJbbgnRpTO4";
+var DATAPIPE_ID = "";
 var COMPLETION_URL = "";             // e.g. a Prolific completion link; empty = none
-var STIM_DIR = "online_stimuli/";
+var SCREENOUT_URL = "";              // where people who fail the headphone check go
+                                     // (e.g. a Prolific "screened out" completion link)
+var CONTACT_TEXT = "";               // e.g. "If you have any questions, please email j.smith@uni.ac.uk."
+                                     // Shown on every ending screen; empty = nothing shown
+var REQUIRE_ID = true;               // true = refuse to start without ?id= in the link
+
+// Headphone screen (see headphone-check.js for all options and defaults)
+var HEADPHONE_SETTINGS = {
+  pass_threshold: 6,   // out of 6 correct
+  max_attempts: 1      // 2 = allow one retry
+};
+var STIM_DIR = "stimuli/";
 
 // Parameters (same values as Experiment_SiN.m)
 var TRIALS_PER_BLOCK = 30;
@@ -82,6 +94,7 @@ function makeWordLists(seed) {
 var subject = "";     // set in main(); used by the filename function below
 var sessionStamp = 0;
 var aborted = false;
+var hp = null;        // headphone screen; set in main()
 var dataFilename = function () { return "SiN_" + subject + "_" + sessionStamp + ".csv"; };
 
 // With a DataPipe ID, registering the pipe extension is the whole integration:
@@ -94,9 +107,20 @@ var jsPsych = initJsPsych({
   }] : [],
   on_finish: function () {
     if (!DATAPIPE_ID) jsPsych.data.get().localSave("csv", dataFilename());
-    var msg = aborted ? "Sorry, there was a problem loading the sounds. Your data so far have been saved."
-                      : "All done. Thank you for taking part!";
-    if (COMPLETION_URL) msg += '<br><br><a href="' + COMPLETION_URL + '">Click here to return to the study site</a>';
+    var msg, link;
+    if (hp && !hp.passed()) {
+      msg = "Thank you. Unfortunately, the headphone check suggests this study won't work well " +
+            "with your current listening setup, so the study ends here.";
+      link = SCREENOUT_URL;
+    } else if (aborted) {
+      msg = "Sorry, there was a problem loading the sounds. Your data so far have been saved.";
+      link = COMPLETION_URL;
+    } else {
+      msg = "All done. Thank you for taking part!";
+      link = COMPLETION_URL;
+    }
+    if (link) msg += '<br><br><a href="' + link + '">Click here to return to the study site</a>';
+    if (CONTACT_TEXT) msg += "<br><br>" + CONTACT_TEXT;
     jsPsych.getDisplayElement().innerHTML = '<div class="sin-text" style="font-size:24px">' + msg + "</div>";
   }
 });
@@ -104,7 +128,15 @@ var jsPsych = initJsPsych({
 function main() {
   var url = function (name) { return jsPsych.data.getURLVariable(name); };
 
-  subject = url("id") || url("PROLIFIC_PID") || jsPsych.randomization.randomID(10);
+  subject = url("id") || url("PROLIFIC_PID") || "";
+  if (!subject && REQUIRE_ID) {
+    jsPsych.getDisplayElement().innerHTML =
+      '<div class="sin-text" style="font-size:24px;max-width:800px">' +
+      "This link is incomplete. Please use the full web address you were sent." +
+      (CONTACT_TEXT ? "<br><br>" + CONTACT_TEXT : "") + "</div>";
+    return;
+  }
+  if (!subject) subject = jsPsych.randomization.randomID(10);
 
   var group = parseInt(url("group"), 10);
   if (group !== 1 && group !== 2) group = Math.random() < 0.5 ? 1 : 2;
@@ -121,17 +153,17 @@ function main() {
 
   var timeline = [];
 
-  // ---- Instructions + volume check ----
+  // ---- 1. Sound setup: headphones on, set volume ----
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus:
       '<div class="sin-text" style="font-size:24px;max-width:800px">' +
-      "On each trial you will hear two words in noise.<br>Decide which word sounded <b>clearer</b>.<br><br>" +
-      "Press the <b>LEFT</b> arrow for Word 1 or the <b>RIGHT</b> arrow for Word 2.<br><br>" +
-      "Please wear headphones. Click the button to hear an example and set your volume " +
-      "to a comfortable level.<br><br>" +
+      "This study involves listening to sounds, so please put on your <b>headphones</b> " +
+      "and find a quiet place.<br><br>" +
+      "Click the button to hear an example sound and set your volume to a comfortable level. " +
+      "Please don't change the volume after this.<br><br>" +
       '<button id="play-vol" class="jspsych-btn">Play example</button><br><br>' +
-      "Press the spacebar when you are ready to begin</div>",
+      "Press the spacebar when you are ready to continue</div>",
     choices: [" "],
     on_load: function () {
       SinAudio.prefetch([STIM_DIR + "volume_check.wav"]);
@@ -141,7 +173,31 @@ function main() {
         ev.target.blur(); // so SPACE doesn't re-trigger the button
       });
     },
-    on_finish: function (d) { SinAudio.resume(); d.task = "instructions"; }
+    on_finish: function (d) { SinAudio.resume(); d.task = "sound_setup"; }
+  });
+
+  // ---- 2. Headphone screen (skip with ?skiphp=1 while testing) ----
+  if (url("skiphp") === "1") {
+    hp = { timeline: [], passed: function () { return true; } };
+  } else {
+    hp = buildHeadphoneScreen(jsPsych, HEADPHONE_SETTINGS);
+  }
+  if (hp.timeline.length) timeline.push({ timeline: hp.timeline });
+
+  // ---- 3. Speech task instructions (only if the screen was passed) ----
+  timeline.push({
+    timeline: [{
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus:
+        '<div class="sin-text" style="font-size:24px;max-width:800px">' +
+        "Thank you. Now the main task.<br><br>" +
+        "On each trial you will hear two words in noise.<br>Decide which word sounded <b>clearer</b>.<br><br>" +
+        "Press the <b>LEFT</b> arrow for Word 1 or the <b>RIGHT</b> arrow for Word 2.<br><br>" +
+        "Press the spacebar when you are ready to begin</div>",
+      choices: [" "],
+      on_finish: function (d) { d.task = "instructions"; }
+    }],
+    conditional_function: function () { return hp.passed(); }
   });
 
   // ---- Blocks ----
@@ -268,7 +324,7 @@ function main() {
 
     timeline.push({
       timeline: blockNodes,
-      conditional_function: function () { return !aborted; }
+      conditional_function: function () { return !aborted && hp.passed(); }
     });
   });
 
