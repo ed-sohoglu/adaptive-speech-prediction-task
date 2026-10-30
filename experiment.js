@@ -15,7 +15,7 @@
 // DataPipe experiment ID (pipe.jspsych.org). DataPipe forwards each data file to
 // the storage provider you choose there (Google Drive, Zenodo or Dataverse).
 // Empty = download the CSV to this computer instead (for testing).
-var DATAPIPE_ID = "";
+var DATAPIPE_ID = "utJbbgnRpTO4";
 var COMPLETION_URL = "";             // e.g. a Prolific completion link; empty = none
 var STIM_DIR = "online_stimuli/";
 
