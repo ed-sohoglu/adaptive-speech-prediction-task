@@ -6,6 +6,7 @@
   <script src="https://unpkg.com/jspsych@8"></script>
   <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2"></script>
   <script src="https://unpkg.com/@jspsych/plugin-call-function@2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-instructions@2"></script>
   <script src="https://unpkg.com/@jspsych/extension-pipe@0.2.0"></script>
   <link href="https://unpkg.com/jspsych@8/css/jspsych.css" rel="stylesheet" type="text/css">
   <style>
@@ -21,10 +22,17 @@
     .hp-box:disabled { cursor: default; color: #aaa; border-color: #ccc; }
     .hp-box.hp-lit, .hp-box.hp-lit:disabled { background: #4a7bd0; border-color: #4a7bd0; color: #fff; }
     .hp-box.hp-target, .hp-box.hp-target:disabled { border-color: #2e8540; border-width: 4px; color: #2e8540; font-weight: bold; }
+    .sin-instr { max-width: 760px; margin: 0 auto; text-align: left; font-size: 20px; line-height: 1.55;
+                 font-family: Arial, Helvetica, sans-serif; color: #222; }
+    .sin-instr h2 { text-align: center; font-size: 28px; margin: 0 0 18px; }
+    .sin-instr ul { padding-left: 1.2em; }
+    .sin-instr li { margin-bottom: 12px; }
+    .jspsych-instructions-nav { margin-top: 24px; }
   </style>
   <script src="words.js"></script>
   <script src="plugin-sin-pair.js"></script>
   <script src="headphone-check.js"></script>
+  <script src="instructions-sin.js"></script>
 </head>
 <body>
   <script src="experiment.js"></script>

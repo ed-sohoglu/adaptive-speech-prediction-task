@@ -185,18 +185,9 @@ function main() {
   if (hp.timeline.length) timeline.push({ timeline: hp.timeline });
 
   // ---- 3. Speech task instructions (only if the screen was passed) ----
+  // Illustrated pages are in instructions-sin.js
   timeline.push({
-    timeline: [{
-      type: jsPsychHtmlKeyboardResponse,
-      stimulus:
-        '<div class="sin-text" style="font-size:24px;max-width:800px">' +
-        "Thank you. Now the main task.<br><br>" +
-        "On each trial you will hear two words in noise.<br>Decide which word sounded <b>clearer</b>.<br><br>" +
-        "Press the <b>LEFT</b> arrow for Word 1 or the <b>RIGHT</b> arrow for Word 2.<br><br>" +
-        "Press the spacebar when you are ready to begin</div>",
-      choices: [" "],
-      on_finish: function (d) { d.task = "instructions"; }
-    }],
+    timeline: buildSpeechInstructions(group, blocks.length),
     conditional_function: function () { return hp.passed(); }
   });
 
