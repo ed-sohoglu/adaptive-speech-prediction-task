@@ -9,7 +9,10 @@
              N_BLOCKS blocks, i.e. 1-3)
      order   'counterbalance' for half sample-first trials (default: target
              always first, as in the original script)
-     skiphp  1 = skip the headphone screen (for your own testing only)
+     parts   which sections to run, in the usual order: any of
+             sound, headphone, speech, questionnaires (comma-separated).
+             Default: all four. e.g. parts=questionnaires, parts=speech
+     skiphp  1 = skip the headphone screen (same as leaving it out of parts)
      questionnaires  1 = always run them, 0 = never (default: only in the
              session that includes the last block, N_BLOCKS)
 
@@ -129,15 +132,19 @@ var jsPsych = initJsPsych({
   }
 });
 
+// Shows a message and stops, for problems found before the experiment starts
+// (jsPsych's own display area doesn't exist yet at that point).
+function stopWithMessage(html) {
+  document.body.innerHTML = '<div class="sin-text" style="font-size:22px;max-width:800px;margin:15vh auto;' +
+    'padding:0 20px;text-align:center">' + html + (CONTACT_TEXT ? "<br><br>" + CONTACT_TEXT : "") + "</div>";
+}
+
 function main() {
   var url = function (name) { return jsPsych.data.getURLVariable(name); };
 
   subject = url("id") || url("PROLIFIC_PID") || "";
   if (!subject && REQUIRE_ID) {
-    jsPsych.getDisplayElement().innerHTML =
-      '<div class="sin-text" style="font-size:24px;max-width:800px">' +
-      "This link is incomplete. Please use the full web address you were sent." +
-      (CONTACT_TEXT ? "<br><br>" + CONTACT_TEXT : "") + "</div>";
+    stopWithMessage("This link is incomplete. Please use the full web address you were sent.");
     return;
   }
   if (!subject) subject = jsPsych.randomization.randomID(10);
@@ -157,10 +164,28 @@ function main() {
 
   jsPsych.data.addProperties({ subject: subject, group: group, condition: condition });
 
+  // ---- Which sections to run (?parts=...) ----
+  var ALL_PARTS = ["sound", "headphone", "speech", "questionnaires"];
+  var partsParam = url("parts");
+  var parts = ALL_PARTS.slice();
+  if (partsParam) {
+    var asked = partsParam.toLowerCase().split(",").map(function (x) { return x.trim(); });
+    var unknown = asked.filter(function (x) { return x && ALL_PARTS.indexOf(x) < 0; });
+    parts = ALL_PARTS.filter(function (x) { return asked.indexOf(x) >= 0; });
+    if (unknown.length || !parts.length) {
+      stopWithMessage("This link is not set up correctly (unrecognised part: " +
+        (unknown.join(", ") || "none given") + ").<br><br>Valid parts are: " + ALL_PARTS.join(", ") + ".");
+      return;
+    }
+  }
+  if (url("skiphp") === "1") parts = parts.filter(function (x) { return x !== "headphone"; });
+  var runPart = function (name) { return parts.indexOf(name) >= 0; };
+  jsPsych.data.addProperties({ parts: parts.join("+") });
+
   var timeline = [];
 
   // ---- 1. Sound setup: headphones on, set volume ----
-  timeline.push({
+  if (runPart("sound")) timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus:
       '<div class="sin-text" style="font-size:24px;max-width:800px">' +
@@ -182,8 +207,8 @@ function main() {
     on_finish: function (d) { SinAudio.resume(); d.task = "sound_setup"; }
   });
 
-  // ---- 2. Headphone screen (skip with ?skiphp=1 while testing) ----
-  if (url("skiphp") === "1") {
+  // ---- 2. Headphone screen ----
+  if (!runPart("headphone")) {
     hp = { timeline: [], passed: function () { return true; } };
   } else {
     hp = buildHeadphoneScreen(jsPsych, HEADPHONE_SETTINGS);
@@ -192,13 +217,13 @@ function main() {
 
   // ---- 3. Speech task instructions (only if the screen was passed) ----
   // Illustrated pages are in instructions-sin.js
-  timeline.push({
-    timeline: buildSpeechInstructions(group, blocks.length),
+  if (runPart("speech")) timeline.push({
+    timeline: buildSpeechInstructions(group, blocks.length, { afterHeadphone: runPart("headphone") }),
     conditional_function: function () { return hp.passed(); }
   });
 
   // ---- Blocks ----
-  blocks.forEach(function (block, bIdx) {
+  (runPart("speech") ? blocks : []).forEach(function (block, bIdx) {
     var first = (block - 1) * TRIALS_PER_BLOCK;
     var targets = lists.target.slice(first, first + TRIALS_PER_BLOCK);
     var samples = lists.sample.slice(first, first + TRIALS_PER_BLOCK);
@@ -330,10 +355,13 @@ function main() {
   // participant doing blocks over two sessions answers them only once.
   // Override with ?questionnaires=1 (always) or ?questionnaires=0 (never).
   var qParam = url("questionnaires");
-  var runQuestionnaires = qParam === "1" ? true : qParam === "0" ? false : blocks.indexOf(N_BLOCKS) >= 0;
+  var runQuestionnaires;
+  if (!runPart("questionnaires") || qParam === "0") runQuestionnaires = false;
+  else if (qParam === "1" || partsParam) runQuestionnaires = true;   // asked for explicitly
+  else runQuestionnaires = blocks.indexOf(N_BLOCKS) >= 0;
   if (runQuestionnaires) {
     timeline.push({
-      timeline: buildQuestionnaires(jsPsych),
+      timeline: buildQuestionnaires(jsPsych, { afterListening: runPart("speech") }),
       conditional_function: function () { return !aborted && hp.passed(); }
     });
   }

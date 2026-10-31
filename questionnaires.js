@@ -328,7 +328,8 @@ function scoreQuestionnaires(all) {
 }
 
 // ---- Timeline -------------------------------------------------------------------
-function buildQuestionnaires(jsPsych) {
+function buildQuestionnaires(jsPsych, opts) {
+  opts = opts || {};
   var AQ_PER_PAGE = 10, CAPS_PER_PAGE = 8;
   var nAQ = Math.ceil(AQ_ITEMS.length / AQ_PER_PAGE);
   var nCAPS = Math.ceil(CAPS_ITEMS.length / CAPS_PER_PAGE);
@@ -341,9 +342,12 @@ function buildQuestionnaires(jsPsych) {
 
   var timeline = [{
     type: jsPsychHtmlKeyboardResponse,
-    stimulus: '<div class="sin-instr"><h2>Listening task complete</h2>' +
-      "<p>Thank you. You can take off your headphones now.</p>" +
-      "<p>Finally, there are three short questionnaires: a few questions about yourself, " +
+    stimulus: (opts.afterListening
+        ? '<div class="sin-instr"><h2>Listening task complete</h2>' +
+          "<p>Thank you. You can take off your headphones now.</p>" +
+          "<p>Finally, there are three short questionnaires: a few questions about yourself, "
+        : '<div class="sin-instr"><h2>Questionnaires</h2>' +
+          "<p>There are three short questionnaires: a few questions about yourself, ") +
       "then two questionnaires about how you think and what you experience. " +
       "They take about 10\u201315 minutes. Please answer every question.</p>" +
       "<p>Press the <b>spacebar</b> to continue.</p></div>",

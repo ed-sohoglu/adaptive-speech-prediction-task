@@ -115,7 +115,9 @@ var SinInstr = (function () {
   return { clarityFigure: clarityFigure, trialFigure: trialFigure, keysFigure: keysFigure };
 })();
 
-function buildSpeechInstructions(group, nParts) {
+function buildSpeechInstructions(group, nParts, opts) {
+  opts = opts || {};
+  if (opts.afterHeadphone === undefined) opts.afterHeadphone = true;
   var page = function (title, body) {
     return '<div class="sin-instr"><h2>' + title + "</h2>" + body + "</div>";
   };
@@ -127,7 +129,7 @@ function buildSpeechInstructions(group, nParts) {
 
   var pages = [
     page("The listening task",
-      "<p>Thank you, the headphone check is complete. Now for the main task.</p>" +
+      (opts.afterHeadphone ? "<p>Thank you, the headphone check is complete. Now for the main task.</p>" : "") +
       "<p>You will hear pairs of spoken words with background noise. The noise makes some words " +
       "easier to make out than others. Your job is to decide <b>which word of each pair sounded clearer</b>.</p>" +
       SinInstr.clarityFigure()),
