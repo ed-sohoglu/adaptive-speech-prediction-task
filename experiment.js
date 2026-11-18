@@ -1,6 +1,7 @@
 /* experiment.js: jsPsych port of Experiment_SiN.m
 
-   URL parameters (all optional):
+   URL parameters:
+     r       recruiter code (see RECRUITERS below); required once recruiters are set up
      id      participant ID (also accepts PROLIFIC_PID). Seeds the word-list
              shuffle, like rng(subject) did, so a participant gets the same lists
              in every session. A random ID is generated if missing.
@@ -29,6 +30,20 @@ var SCREENOUT_URL = "";              // where people who fail the headphone chec
 var CONTACT_TEXT = "";               // e.g. "If you have any questions, please email j.smith@uni.ac.uk."
                                      // Shown on every ending screen; empty = nothing shown
 var REQUIRE_ID = true;               // true = refuse to start without ?id= in the link
+
+// ---- Recruiters -------------------------------------------------------------
+// One entry per student. The code goes in their links as ?r=CODE. Participants
+// can see the link, so use short codes that don't name the student.
+// Give each student their own DataPipe experiment (same account, new experiment
+// at pipe.jspsych.org) so their data land in a separate Google Drive folder.
+// A student with datapipe left empty uses DATAPIPE_ID above.
+// Data files are also named with the code (e.g. k4m9_SiN_...csv) and every row
+// has a "recruiter" column.
+var RECRUITERS = {
+  // "k4m9": { name: "Student A", datapipe: "xxxxxxxxxxxx" },
+  // "p7t2": { name: "Student B", datapipe: "yyyyyyyyyyyy" },
+};
+var REQUIRE_RECRUITER = true;        // once RECRUITERS has entries, refuse links without a valid code
 
 // Headphone screen (see headphone-check.js for all options and defaults)
 var HEADPHONE_SETTINGS = {
@@ -98,39 +113,59 @@ function makeWordLists(seed) {
 }
 
 // ---- Main -------------------------------------------------------------------
+// Recruiter from the link (read before jsPsych starts, because it decides
+// which DataPipe experiment receives the data)
+var recruiterCode = (new URLSearchParams(window.location.search).get("r") || "").trim().toLowerCase();
+var recruiter = null;
+Object.keys(RECRUITERS).forEach(function (k) { if (k.toLowerCase() === recruiterCode) recruiter = RECRUITERS[k]; });
+var ACTIVE_DATAPIPE_ID = (recruiter && recruiter.datapipe) || DATAPIPE_ID;
+
 var subject = "";     // set in main(); used by the filename function below
 var sessionStamp = 0;
 var aborted = false;
 var hp = null;        // headphone screen; set in main()
-var dataFilename = function () { return "SiN_" + subject + "_" + sessionStamp + ".csv"; };
+var debrief = null;   // debrief page; set in main()
+var dataFilename = function () {
+  return (recruiter ? recruiterCode + "_" : "") + "SiN_" + subject + "_" + sessionStamp + ".csv";
+};
 
 // With a DataPipe ID, registering the pipe extension is the whole integration:
 // it uploads each trial as it finishes (so a participant who quits part-way
 // can still be recovered) and submits the full CSV when the experiment ends.
-var jsPsych = initJsPsych({
-  extensions: DATAPIPE_ID ? [{
-    type: jsPsychExtensionPipe,
-    params: { experiment_id: DATAPIPE_ID, filename: dataFilename }
-  }] : [],
-  on_finish: function () {
-    if (!DATAPIPE_ID) jsPsych.data.get().localSave("csv", dataFilename());
-    var msg, link;
-    if (hp && !hp.passed()) {
-      msg = "Thank you. Unfortunately, the headphone check suggests this study won't work well " +
-            "with your current listening setup, so the study ends here.";
-      link = SCREENOUT_URL;
-    } else if (aborted) {
-      msg = "Sorry, there was a problem loading the sounds. Your data so far have been saved.";
-      link = COMPLETION_URL;
-    } else {
-      msg = "All done. Thank you for taking part!";
-      link = COMPLETION_URL;
+// jsPsych is created only after consent (see main), so nothing is recorded
+// or sent to DataPipe before the participant agrees.
+var jsPsych = null;
+
+function createJsPsych() {
+  return initJsPsych({
+    extensions: ACTIVE_DATAPIPE_ID ? [{
+      type: jsPsychExtensionPipe,
+      params: { experiment_id: ACTIVE_DATAPIPE_ID, filename: dataFilename }
+    }] : [],
+    on_finish: function () {
+      if (!ACTIVE_DATAPIPE_ID) jsPsych.data.get().localSave("csv", dataFilename());
+      var msg, link;
+      if (hp && !hp.passed()) {
+        msg = "Thank you. Unfortunately, the headphone check suggests this study won't work well " +
+              "with your current listening setup, so the study ends here.";
+        link = SCREENOUT_URL;
+      } else if (aborted) {
+        msg = "Sorry, there was a problem loading the sounds. Your data so far have been saved.";
+        link = COMPLETION_URL;
+      } else if (debrief && debrief.withdrawn()) {
+        msg = "Your responses have been withdrawn and will be permanently deleted before any analysis begins. " +
+              "Thank you for your time. You can now close this window.";
+        link = COMPLETION_URL;
+      } else {
+        msg = "Your responses have been submitted. Thank you for taking part! You can now close this window.";
+        link = COMPLETION_URL;
+      }
+      if (link) msg += '<br><br><a href="' + link + '">Click here to return to the study site</a>';
+      if (CONTACT_TEXT) msg += "<br><br>" + CONTACT_TEXT;
+      jsPsych.getDisplayElement().innerHTML = '<div class="sin-text" style="font-size:24px">' + msg + "</div>";
     }
-    if (link) msg += '<br><br><a href="' + link + '">Click here to return to the study site</a>';
-    if (CONTACT_TEXT) msg += "<br><br>" + CONTACT_TEXT;
-    jsPsych.getDisplayElement().innerHTML = '<div class="sin-text" style="font-size:24px">' + msg + "</div>";
-  }
-});
+  });
+}
 
 // Shows a message and stops, for problems found before the experiment starts
 // (jsPsych's own display area doesn't exist yet at that point).
@@ -139,30 +174,21 @@ function stopWithMessage(html) {
     'padding:0 20px;text-align:center">' + html + (CONTACT_TEXT ? "<br><br>" + CONTACT_TEXT : "") + "</div>";
 }
 
-function main() {
-  var url = function (name) { return jsPsych.data.getURLVariable(name); };
+async function main() {
+  var params = new URLSearchParams(window.location.search);
+  var url = function (name) { return params.get(name) || ""; };
 
   subject = url("id") || url("PROLIFIC_PID") || "";
   if (!subject && REQUIRE_ID) {
     stopWithMessage("This link is incomplete. Please use the full web address you were sent.");
     return;
   }
-  if (!subject) subject = jsPsych.randomization.randomID(10);
+  if (!subject) subject = "anon_" + Math.random().toString(36).slice(2, 10);
 
-  var group = parseInt(url("group"), 10);
-  if (group !== 1 && group !== 2) group = Math.random() < 0.5 ? 1 : 2;
-  var condition = group === 1 ? "Context" : "NoContext";
-
-  var allBlocks = [];
-  for (var bk = 1; bk <= N_BLOCKS; bk++) allBlocks.push(bk);
-  var blocks = (url("blocks") || allBlocks.join(",")).split(",")
-    .map(function (s) { return parseInt(s, 10); })
-    .filter(function (b) { return b >= 1 && b <= N_BLOCKS && WORDS.length >= b * TRIALS_PER_BLOCK; });
-
-  var counterbalance = url("order") === "counterbalance";
-  var lists = makeWordLists(subject);
-
-  jsPsych.data.addProperties({ subject: subject, group: group, condition: condition });
+  if (Object.keys(RECRUITERS).length && REQUIRE_RECRUITER && !recruiter) {
+    stopWithMessage("This link is incomplete or out of date. Please use the full web address you were sent.");
+    return;
+  }
 
   // ---- Which sections to run (?parts=...) ----
   var ALL_PARTS = ["sound", "headphone", "speech", "questionnaires"];
@@ -180,6 +206,33 @@ function main() {
   }
   if (url("skiphp") === "1") parts = parts.filter(function (x) { return x !== "headphone"; });
   var runPart = function (name) { return parts.indexOf(name) >= 0; };
+  // ---- Information sheet and consent (consent.js) ----
+  // Shown before jsPsych starts: nothing is recorded, stored or sent unless the
+  // participant agrees. Declining ends the study there, with no data saved.
+  var consent = await Consent.run();
+  jsPsych = createJsPsych();
+  jsPsych.data.addProperties(consent);   // consent_given, consent_time, info_sheet_version
+
+  // Integrity record (browser reuse, device, start time), attached to every row
+  var integrity = Integrity.startSession(subject);
+  jsPsych.data.addProperties(Integrity.rowFields(integrity));
+  jsPsych.data.addProperties({ recruiter: recruiter ? recruiterCode : "" });
+
+  var group = parseInt(url("group"), 10);
+  if (group !== 1 && group !== 2) group = Math.random() < 0.5 ? 1 : 2;
+  var condition = group === 1 ? "Context" : "NoContext";
+
+  var allBlocks = [];
+  for (var bk = 1; bk <= N_BLOCKS; bk++) allBlocks.push(bk);
+  var blocks = (url("blocks") || allBlocks.join(",")).split(",")
+    .map(function (s) { return parseInt(s, 10); })
+    .filter(function (b) { return b >= 1 && b <= N_BLOCKS && WORDS.length >= b * TRIALS_PER_BLOCK; });
+
+  var counterbalance = url("order") === "counterbalance";
+  var lists = makeWordLists(subject);
+
+  jsPsych.data.addProperties({ subject: subject, group: group, condition: condition });
+
   jsPsych.data.addProperties({ parts: parts.join("+") });
 
   var timeline = [];
@@ -370,6 +423,16 @@ function main() {
   // no save trial. Timestamp in the file name: DataPipe refuses a duplicate
   // name, and a participant may run blocks in separate sessions.
   sessionStamp = Date.now();
+
+  // ---- Debrief (debrief.js): before final submission, with the option to withdraw ----
+  debrief = buildDebrief(jsPsych, { questionnairesRan: runQuestionnaires });
+  timeline.push({
+    timeline: debrief.timeline,
+    conditional_function: function () { return !aborted && hp.passed(); }
+  });
+
+  // Integrity summary: always the last row of a session that reaches the end
+  timeline.push(Integrity.summaryNode(jsPsych, integrity));
 
   jsPsych.run(timeline);
 }

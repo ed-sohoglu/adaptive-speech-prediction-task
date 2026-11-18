@@ -62,12 +62,42 @@
     .q-matrix tr.q-missing .q-text { color: #b3261e; }
     .q-error { color: #b3261e; margin: 12px 0; }
     .q-submit { display: block; margin: 24px auto 0; font-size: 18px; padding: 10px 28px; }
+    .c-page { max-width: 760px; margin: 0 auto; padding: 32px 20px 56px; text-align: left;
+              font-family: Arial, Helvetica, sans-serif; font-size: 18px; line-height: 1.6; color: #222; }
+    .c-page h1 { font-size: 28px; margin: 0 0 6px; }
+    .c-page h2 { font-size: 20px; margin: 28px 0 6px; }
+    .c-sub { color: #666; margin-top: 0; }
+    .c-todo { background: #fff3a8; color: #222; padding: 0 2px; }
+    .c-check { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; margin: 10px 0;
+               border: 1px solid #dde2ea; border-radius: 10px; cursor: pointer; }
+    .c-check input { width: 22px; height: 22px; margin: 3px 0 0; flex: none; cursor: pointer; }
+    .c-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 32px; }
+    .c-btn { font: inherit; font-size: 17px; padding: 10px 20px; border-radius: 8px; border: 1px solid #b8c0cc;
+             background: #fff; color: #222; cursor: pointer; }
+    .c-primary { background: #2f6fd0; border-color: #2f6fd0; color: #fff; font-weight: bold; }
+    .c-btn:disabled { opacity: .45; cursor: default; }
+    .c-decline { text-align: center; margin-top: 18px; }
+    .c-list li { margin-bottom: 10px; }
+    .c-required { border-color: #2f6fd0; border-width: 2px; }
+    .c-optional { color: #666; font-size: 15px; }
+    .c-hint { text-align: center; color: #666; font-size: 15px; margin: 10px 0 0; }
+    @media print { .c-actions, .c-hint, .c-decline, .c-check input { display: none; } .c-check { border: none; padding: 4px 0; } }
+    .d-page { padding-top: 8px; }
+    .d-links { padding-left: 1.2em; }
+    .d-links li { margin-bottom: 8px; }
+    .d-url { display: block; font-size: 14px; color: #666; word-break: break-all; }
+    .d-note { font-size: 15px; color: #666; }
+    .c-link { font: inherit; font-size: 16px; background: none; border: none; color: #555;
+              text-decoration: underline; cursor: pointer; }
   </style>
   <script src="words.js"></script>
   <script src="plugin-sin-pair.js"></script>
   <script src="headphone-check.js"></script>
   <script src="instructions-sin.js"></script>
   <script src="questionnaires.js"></script>
+  <script src="integrity.js"></script>
+  <script src="consent.js"></script>
+  <script src="debrief.js"></script>
 </head>
 <body>
   <script src="experiment.js"></script>
