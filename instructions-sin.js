@@ -4,6 +4,10 @@
    The trial diagram matches the participant's group (with or without the
    on-screen word). Edit the wording in PAGE TEXT below. */
 
+// Example word shown in the instruction diagrams. Change it if it is one of
+// your 180 stimulus words, so the instructions don't preview a test item.
+var INSTR_EXAMPLE_WORD = "table";
+
 var SinInstr = (function () {
   var BLUE = "#4a7bd0", GREEN = "#2e8540", GREY = "#888", INK = "#222", PALE = "#f2f5fa";
   var FONT = "font-family:Arial,Helvetica,sans-serif";
@@ -57,22 +61,49 @@ var SinInstr = (function () {
 
   // ---- Diagram 1: a clear word vs a noisy word ----
   function clarityFigure() {
-    var b = "";
-    [[20, "Word 1", 0.12, 7, "Clearer", GREEN], [340, "Word 2", 0.85, 11, "Harder to make out", GREY]].forEach(function (c) {
-      var x = c[0];
-      b += '<rect x="' + x + '" y="10" width="280" height="170" rx="12" fill="' + PALE + '" stroke="#d5dbe6"/>';
-      b += speaker(x + 18, 24, 34) + text(x + 64, 48, c[1], 20, { anchor: "start", bold: true });
-      b += wave(x + 20, 115, 240, 70, c[2], c[3]);
-      b += text(x + 140, 168, c[4], 17, { fill: c[5], bold: c[5] === GREEN });
+    // Each panel: a loudspeaker "saying" the word in a speech bubble. In the
+    // clear panel the word is crisp with only a little static; in the noisy panel
+    // the word is fuzzy and half-hidden behind static, like a bad radio signal.
+    var b = '<defs><filter id="sin-fuzz" x="-20%" y="-40%" width="140%" height="180%">' +
+      '<feGaussianBlur stdDeviation="1.3"/></filter></defs>';
+    var panels = [
+      { x: 20,  label: "Word 1", caption: "Clearer", capColor: GREEN, dots: 25, fuzzy: false, seed: 5 },
+      { x: 340, label: "Word 2", caption: "Harder to make out", capColor: GREY, dots: 260, fuzzy: true, seed: 9 }
+    ];
+    panels.forEach(function (c, k) {
+      var x = c.x, r = rng(c.seed);
+      b += '<rect x="' + x + '" y="10" width="280" height="190" rx="12" fill="' + PALE + '" stroke="#d5dbe6"/>';
+      b += text(x + 140, 38, c.label, 19, { bold: true });
+      // speech bubble (rounded box) with a tail pointing down-left to the loudspeaker
+      var bx = x + 70, by = 54, bw = 190, bh = 88;
+      var clipId = "sin-bubble-" + k;
+      b += '<clipPath id="' + clipId + '"><rect x="' + bx + '" y="' + by + '" width="' + bw + '" height="' + bh + '" rx="14"/></clipPath>';
+      b += '<path d="M' + (bx + 26) + " " + (by + bh - 1) + "L" + (bx - 6) + " " + (by + bh + 26) + "L" + (bx + 52) + " " + (by + bh - 1) +
+        'z" fill="#fff" stroke="' + INK + '" stroke-width="2" stroke-linejoin="round"/>';
+      b += '<rect x="' + bx + '" y="' + by + '" width="' + bw + '" height="' + bh + '" rx="14" fill="#fff" stroke="' + INK + '" stroke-width="2"/>';
+      b += '<line x1="' + (bx + 28) + '" y1="' + (by + bh) + '" x2="' + (bx + 50) + '" y2="' + (by + bh) + '" stroke="#fff" stroke-width="3"/>';
+      b += '<g clip-path="url(#' + clipId + ')">';
+      b += '<text x="' + (bx + bw / 2) + '" y="' + (by + bh / 2 + 12) + '" text-anchor="middle" font-size="34" ' +
+        'font-weight="bold" fill="' + (c.fuzzy ? "#444" : INK) + '"' + (c.fuzzy ? ' filter="url(#sin-fuzz)"' : "") +
+        ' style="' + FONT + '">' + INSTR_EXAMPLE_WORD + "</text>";
+      for (var i = 0; i < c.dots; i++) {   // static
+        var dx = bx + r() * bw, dy = by + r() * bh, g = Math.round(90 + r() * 110);
+        b += '<rect x="' + dx.toFixed(1) + '" y="' + dy.toFixed(1) + '" width="' + (1.5 + r() * 2).toFixed(1) +
+          '" height="' + (1.5 + r() * 2).toFixed(1) + '" fill="rgb(' + g + "," + g + "," + g + ')" opacity="' +
+          (0.3 + r() * 0.45).toFixed(2) + '"/>';
+      }
+      b += "</g>";
+      b += speaker(x + 18, 150, 34);
+      b += text(x + 165, 186, c.caption, 17, { fill: c.capColor, bold: !c.fuzzy });
     });
-    return svg(640, 190, b);
+    return svg(640, 210, b);
   }
 
   // ---- Diagram 2: what happens on each trial ----
   function trialFigure(group) {
     var steps = [];
     if (group === 1) {
-      steps.push({ draw: function (x) { return screen(x, 20, 120, 80, text(x + 60, 67, "table", 20, { italic: true })); },
+      steps.push({ draw: function (x) { return screen(x, 20, 120, 80, text(x + 60, 67, INSTR_EXAMPLE_WORD, 20, { italic: true })); },
                    cap: ["A word appears", "on the screen"] });
     }
     steps.push({ draw: function (x) { return speaker(x + 38, 32, 44) + text(x + 60, 100, "Word 1", 16, { bold: true }); },
@@ -136,6 +167,10 @@ function buildSpeechInstructions(group, nParts, opts) {
 
     page("What happens on each trial",
       contextLine + SinInstr.trialFigure(group) +
+      (group === 1
+        ? '<div class="sin-note">Please judge how clearly each word <b>sounds</b>. ' +
+          "Don\u2019t base your answer on whether the spoken words match the word shown on the screen.</div>"
+        : "") +
       "<p>Each word is played only <b>once</b>, so please listen carefully. " +
       "You can answer as soon as both words have finished.</p>"),
 
