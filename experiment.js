@@ -45,7 +45,12 @@ var RECRUITERS = {
 };
 var REQUIRE_RECRUITER = true;        // once RECRUITERS has entries, refuse links without a valid code
 
-// Headphone screen (see headphone-check.js for all options and defaults)
+// Headphone screen: true = everyone does it (links can still skip it with
+// &skiphp=1); false = nobody does it. If you switch it off for everyone, also
+// remove the headphone check from the information sheet in consent.js.
+var USE_HEADPHONE_SCREEN = true;
+
+// Headphone screen settings (see headphone-check.js for all options and defaults)
 var HEADPHONE_SETTINGS = {
   pass_threshold: 6,   // out of 6 correct
   max_attempts: 1      // 2 = allow one retry
@@ -101,15 +106,18 @@ function shuffle(arr, rand) {
   return b;
 }
 
-// Same as the original: shuffle twice, reshuffle the sample list until no
-// position pairs a word with itself.
+// Shuffle the word list once (seeded by participant ID) and split it in half:
+// the first half supplies target words, the second half sample words. The two
+// halves never overlap, so no participant hears any word more than once.
+// (The original MATLAB script shuffled the list twice instead, so a word could
+// occur once as a target and once as a sample.)
+// Each half must hold N_BLOCKS * TRIALS_PER_BLOCK words; with 958 words that is
+// up to 15 blocks.
 function makeWordLists(seed) {
   var rand = seededRandom(String(seed));
-  var target = shuffle(WORDS, rand);
-  var sample = shuffle(WORDS, rand);
-  var clash = function () { return target.some(function (w, i) { return w === sample[i]; }); };
-  while (clash()) sample = shuffle(sample, rand);
-  return { target: target, sample: sample };
+  var all = shuffle(WORDS, rand);
+  var half = Math.floor(all.length / 2);
+  return { target: all.slice(0, half), sample: all.slice(half, 2 * half) };
 }
 
 // ---- Main -------------------------------------------------------------------
@@ -204,7 +212,7 @@ async function main() {
       return;
     }
   }
-  if (url("skiphp") === "1") parts = parts.filter(function (x) { return x !== "headphone"; });
+  if (url("skiphp") === "1" || !USE_HEADPHONE_SCREEN) parts = parts.filter(function (x) { return x !== "headphone"; });
   var runPart = function (name) { return parts.indexOf(name) >= 0; };
   // ---- Information sheet and consent (consent.js) ----
   // Shown before jsPsych starts: nothing is recorded, stored or sent unless the
@@ -226,7 +234,7 @@ async function main() {
   for (var bk = 1; bk <= N_BLOCKS; bk++) allBlocks.push(bk);
   var blocks = (url("blocks") || allBlocks.join(",")).split(",")
     .map(function (s) { return parseInt(s, 10); })
-    .filter(function (b) { return b >= 1 && b <= N_BLOCKS && WORDS.length >= b * TRIALS_PER_BLOCK; });
+    .filter(function (b) { return b >= 1 && b <= N_BLOCKS && Math.floor(WORDS.length / 2) >= b * TRIALS_PER_BLOCK; });
 
   var counterbalance = url("order") === "counterbalance";
   var lists = makeWordLists(subject);
