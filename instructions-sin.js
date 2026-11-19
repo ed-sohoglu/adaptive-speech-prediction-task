@@ -67,8 +67,8 @@ var SinInstr = (function () {
     var b = '<defs><filter id="sin-fuzz" x="-20%" y="-40%" width="140%" height="180%">' +
       '<feGaussianBlur stdDeviation="1.3"/></filter></defs>';
     var panels = [
-      { x: 20,  label: "Word 1", caption: "Clearer", capColor: GREEN, dots: 25, fuzzy: false, seed: 5 },
-      { x: 340, label: "Word 2", caption: "Harder to make out", capColor: GREY, dots: 260, fuzzy: true, seed: 9 }
+      { x: 20,  label: "Word 1", caption: "Harder to make out", capColor: GREY, dots: 260, fuzzy: true, seed: 9 },
+      { x: 340, label: "Word 2", caption: "Clearer", capColor: GREEN, dots: 25, fuzzy: false, seed: 5 }
     ];
     panels.forEach(function (c, k) {
       var x = c.x, r = rng(c.seed);
