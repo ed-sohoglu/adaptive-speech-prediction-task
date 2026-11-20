@@ -2,9 +2,9 @@
 
    URL parameters:
      r       recruiter code (see RECRUITERS below); required once recruiters are set up
-     id      participant ID (also accepts PROLIFIC_PID). Seeds the word-list
-             shuffle, like rng(subject) did, so a participant gets the same lists
-             in every session. A random ID is generated if missing.
+     id      participant ID (optional; for testing). Normally left out: each
+             session then gets its own random ID, so links carry no
+             information about who received them and the data stay anonymous.
      group   1 = Context, 2 = NoContext. If missing, assigned at random.
      blocks  which blocks to run, e.g. blocks=2 or blocks=1,2 (default: all
              N_BLOCKS blocks, i.e. 1-3)
@@ -29,7 +29,7 @@ var SCREENOUT_URL = "";              // where people who fail the headphone chec
                                      // (e.g. a Prolific "screened out" completion link)
 var CONTACT_TEXT = "";               // e.g. "If you have any questions, please email j.smith@uni.ac.uk."
                                      // Shown on every ending screen; empty = nothing shown
-var REQUIRE_ID = true;               // true = refuse to start without ?id= in the link
+var REQUIRE_ID = false;              // false = links need no ID; each session gets a random one
 
 // ---- Recruiters -------------------------------------------------------------
 // One entry per student. The code goes in their links as ?r=CODE. Participants
@@ -175,6 +175,15 @@ function createJsPsych() {
   });
 }
 
+// Random session ID, e.g. "K7QM-3XRT": made fresh for every session, and not
+// connected to anything about the participant.
+function randomSessionId() {
+  var chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", b = new Uint8Array(8), out = "";
+  window.crypto.getRandomValues(b);
+  for (var i = 0; i < 8; i++) out += chars[b[i] % chars.length] + (i === 3 ? "-" : "");
+  return out;
+}
+
 // Shows a message and stops, for problems found before the experiment starts
 // (jsPsych's own display area doesn't exist yet at that point).
 function stopWithMessage(html) {
@@ -191,7 +200,8 @@ async function main() {
     stopWithMessage("This link is incomplete. Please use the full web address you were sent.");
     return;
   }
-  if (!subject) subject = "anon_" + Math.random().toString(36).slice(2, 10);
+  if (!subject) subject = randomSessionId();
+  var idFromLink = !!(url("id") || url("PROLIFIC_PID"));
 
   if (Object.keys(RECRUITERS).length && REQUIRE_RECRUITER && !recruiter) {
     stopWithMessage("This link is incomplete or out of date. Please use the full web address you were sent.");
@@ -226,8 +236,10 @@ async function main() {
   jsPsych.data.addProperties(Integrity.rowFields(integrity));
   jsPsych.data.addProperties({ recruiter: recruiter ? recruiterCode : "" });
 
+  // Group: from the link if given (e.g. for testing), otherwise random 50/50
   var group = parseInt(url("group"), 10);
-  if (group !== 1 && group !== 2) group = Math.random() < 0.5 ? 1 : 2;
+  var groupFromLink = group === 1 || group === 2;
+  if (!groupFromLink) group = Math.random() < 0.5 ? 1 : 2;
   var condition = group === 1 ? "Context" : "NoContext";
 
   var allBlocks = [];
@@ -239,7 +251,11 @@ async function main() {
   var counterbalance = url("order") === "counterbalance";
   var lists = makeWordLists(subject);
 
-  jsPsych.data.addProperties({ subject: subject, group: group, condition: condition });
+  jsPsych.data.addProperties({
+    subject: subject, group: group, condition: condition,
+    id_source: idFromLink ? "link" : "generated",       // "link" = a test link that set id=
+    group_source: groupFromLink ? "link" : "random"
+  });
 
   jsPsych.data.addProperties({ parts: parts.join("+") });
 

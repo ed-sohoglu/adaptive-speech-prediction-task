@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Participant link generator</title>
-<!-- Keep this file on your own computer. Do NOT put it in the study's GitHub
-     repository: the repository is public, and students could use it to make
-     their own IDs. -->
+<title>Study link generator</title>
+<!-- Makes one general study link per recruiter. The links contain only the
+     recruiter code: each session gets its own random ID automatically, so links
+     carry no information about who received them. -->
 <style>
   :root { --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --panel: #f6f8fa;
           --accent: #2f6fd0; --accent-fg: #ffffff; color-scheme: light; }
@@ -19,11 +19,11 @@
   main { max-width: 920px; margin: 0 auto; }
   h1 { font-size: 24px; margin: 0 0 4px; }
   p.lead { color: var(--muted); margin: 0 0 24px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 20px;
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 20px;
           background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
   label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
   .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
-  input, select { width: 100%; box-sizing: border-box; font: inherit; padding: 8px 10px; border-radius: 6px;
+  input { width: 100%; box-sizing: border-box; font: inherit; padding: 8px 10px; border-radius: 6px;
           border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
   .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
   button { font: inherit; padding: 9px 16px; border-radius: 6px; border: 1px solid var(--line);
@@ -40,30 +40,19 @@
 </head>
 <body>
 <main>
-  <h1>Participant link generator</h1>
-  <p class="lead">Makes a batch of participant links for one recruiter, with random IDs that can’t be guessed
-    and groups balanced 1/2. Save each batch’s CSV: it’s your master list of the IDs you issued.</p>
+  <h1>Study link generator</h1>
+  <p class="lead">Makes one link per student. Each student shares their link with everyone they recruit:
+    every session gets its own random ID and a random group automatically.</p>
 
   <div class="grid">
     <div><label for="base">Study address <span class="hint">(your GitHub Pages URL)</span></label>
-      <input id="base" placeholder="https://yourusername.github.io/repositoryname/"></div>
-    <div><label for="code">Recruiter code <span class="hint">(as in RECRUITERS)</span></label>
-      <input id="code" placeholder="k4m9"></div>
-    <div><label for="n">Number of participants</label>
-      <input id="n" type="number" min="2" max="500" step="2" value="20"></div>
-    <div><label for="groups">Groups</label>
-      <select id="groups">
-        <option value="balanced">Balanced: half group 1, half group 2</option>
-        <option value="1">Group 1 only (Context)</option>
-        <option value="2">Group 2 only (NoContext)</option>
-      </select></div>
-    <div><label for="extra">Extra settings <span class="hint">(optional, e.g. &amp;blocks=1)</span></label>
-      <input id="extra" placeholder=""></div>
+      <input id="base" value="https://ed-sohoglu.github.io/adaptive-speech-prediction-task/"></div>
+    <div><label for="codes">Recruiter codes <span class="hint">(as in RECRUITERS, separated by commas)</span></label>
+      <input id="codes" placeholder="k4m9, p7t2"></div>
   </div>
 
   <div class="actions">
-    <button class="primary" id="go">Generate links</button>
-    <button id="csv" disabled>Download CSV</button>
+    <button class="primary" id="go">Make links</button>
     <button id="copy" disabled>Copy links</button>
   </div>
   <div class="msg" id="msg"></div>
@@ -71,80 +60,33 @@
 </main>
 
 <script>
-  var CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O or 1/I, so IDs are easy to read out
-  var rows = [];
-
-  function randomId() {
-    var b = new Uint8Array(8), s = "";
-    crypto.getRandomValues(b);
-    for (var i = 0; i < 8; i++) s += CHARS[b[i] % CHARS.length] + (i === 3 ? "-" : "");
-    return s;
-  }
-  function randInt(n) { var b = new Uint32Array(1); crypto.getRandomValues(b); return b[0] % n; }
+  var links = [];
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
 
   document.getElementById("go").onclick = function () {
     var msg = document.getElementById("msg");
-    var base = document.getElementById("base").value.trim();
-    var code = document.getElementById("code").value.trim().toLowerCase();
-    var n = parseInt(document.getElementById("n").value, 10);
-    var extra = document.getElementById("extra").value.trim();
+    var base = document.getElementById("base").value.trim().split("?")[0];
+    var codes = document.getElementById("codes").value.split(",")
+      .map(function (c) { return c.trim().toLowerCase(); }).filter(Boolean);
     if (!/^https?:\/\//.test(base)) { msg.textContent = "Enter the full study address, starting with https://"; return; }
-    if (!/^[a-z0-9]+$/.test(code)) { msg.textContent = "The recruiter code should be letters and numbers only."; return; }
-    if (!(n >= 1 && n <= 500)) { msg.textContent = "Choose between 1 and 500 participants."; return; }
-    if (extra && extra.charAt(0) !== "&") extra = "&" + extra;
-    var clash = (extra.match(/[?&](r|id|group)=/gi) || []).map(function (x) { return x.replace(/[?&=]/g, ""); });
-    if (clash.length) {
-      msg.textContent = "Please remove " + clash.join(", ") + " from Extra settings: the generator sets " +
-        (clash.length > 1 ? "these" : "this") + " itself (use the Groups box to choose the group).";
-      return;
-    }
-    var groupMode = document.getElementById("groups").value;
-    if (base.indexOf("?") >= 0) base = base.split("?")[0];
+    if (!codes.length) { msg.textContent = "Enter at least one recruiter code."; return; }
+    var bad = codes.filter(function (c) { return !/^[a-z0-9]+$/.test(c); });
+    if (bad.length) { msg.textContent = "Codes should be letters and numbers only: " + bad.join(", "); return; }
 
-    // Groups balanced within each pair, in random order
-    var groups = [];
-    if (groupMode === "balanced") {
-      while (groups.length < n) { var pair = randInt(2) ? [1, 2] : [2, 1]; groups.push(pair[0], pair[1]); }
-      groups = groups.slice(0, n);
-    } else {
-      for (var g = 0; g < n; g++) groups.push(parseInt(groupMode, 10));
-    }
-
-    var seen = {}; rows = [];
-    var issued = new Date().toISOString().slice(0, 10);
-    for (var i = 0; i < n; i++) {
-      var id; do { id = randomId(); } while (seen[id]); seen[id] = 1;
-      rows.push({ recruiter: code, id: id, group: groups[i], issued: issued,
-                  link: base + "?r=" + code + "&id=" + id + "&group=" + groups[i] + extra });
-    }
-
-    var h = "<table><thead><tr><th>#</th><th>Participant ID</th><th>Group</th><th>Link</th></tr></thead><tbody>";
-    rows.forEach(function (r, k) {
-      h += "<tr><td>" + (k + 1) + "</td><td>" + r.id + "</td><td>" + r.group + '</td><td class="link">' + esc(r.link) + "</td></tr>";
-    });
+    links = codes.map(function (c) { return { code: c, link: base + "?r=" + c }; });
+    var h = "<table><thead><tr><th>Recruiter code</th><th>Link to share</th></tr></thead><tbody>";
+    links.forEach(function (l) { h += "<tr><td>" + l.code + '</td><td class="link">' + esc(l.link) + "</td></tr>"; });
     var out = document.getElementById("out");
     out.innerHTML = h + "</tbody></table>"; out.hidden = false;
-    document.getElementById("csv").disabled = false;
     document.getElementById("copy").disabled = false;
-    msg.textContent = n + " links made for recruiter “" + code + "”. Download the CSV before closing this page.";
-  };
-
-  document.getElementById("csv").onclick = function () {
-    var lines = ["recruiter,participant_id,group,issued,link"].concat(rows.map(function (r) {
-      return [r.recruiter, r.id, r.group, r.issued, '"' + r.link + '"'].join(",");
-    }));
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
-    a.download = "links_" + rows[0].recruiter + "_" + rows[0].issued + ".csv";
-    document.body.appendChild(a); a.click(); a.remove();
+    msg.textContent = "Check each code matches an entry in RECRUITERS in experiment.js; unknown codes are refused.";
   };
 
   document.getElementById("copy").onclick = function () {
-    navigator.clipboard.writeText(rows.map(function (r) { return r.link; }).join("\n")).then(function () {
+    navigator.clipboard.writeText(links.map(function (l) { return l.code + ": " + l.link; }).join("\n")).then(function () {
       document.getElementById("msg").textContent = "Links copied to the clipboard.";
     }, function () {
-      document.getElementById("msg").textContent = "Couldn’t copy automatically; use Download CSV instead.";
+      document.getElementById("msg").textContent = "Couldn\u2019t copy automatically; select the links in the table instead.";
     });
   };
 </script>
